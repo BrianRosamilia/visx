@@ -22,6 +22,7 @@ const xScaleConfig = { type: 'band', paddingInner: 0.3 } as const;
 const yScaleConfig = { type: 'linear' } as const;
 const numTicks = 4;
 const data = cityTemperature.slice(200, 275);
+const dataSmall = data.slice(25);
 const getDate = (d: CityTemperature) => d.date;
 const getSfTemperature = (d: CityTemperature) => Number(d['San Francisco']);
 const getNyTemperature = (d: CityTemperature) => Number(d['New York']);
@@ -73,27 +74,24 @@ export default function Example({ height }: Props) {
             )}
             {renderBarStack && (
               <g fillOpacity={renderLineSeries ? 0.5 : 1}>
-                <BarStack>
+                <BarStack horizontal={renderHorizontally}>
                   <BarSeries
                     dataKey="New York"
-                    data={data}
+                    data={dataSmall}
                     xAccessor={renderHorizontally ? getNyTemperature : getDate}
                     yAccessor={renderHorizontally ? getDate : getNyTemperature}
-                    horizontal={renderHorizontally}
                   />
                   <BarSeries
                     dataKey="San Francisco"
-                    data={data}
+                    data={dataSmall}
                     xAccessor={renderHorizontally ? getSfTemperature : getDate}
                     yAccessor={renderHorizontally ? getDate : getSfTemperature}
-                    horizontal={renderHorizontally}
                   />
                   <BarSeries
                     dataKey="Austin"
-                    data={data}
+                    data={dataSmall}
                     xAccessor={renderHorizontally ? getAustinTemperature : getDate}
                     yAccessor={renderHorizontally ? getDate : getAustinTemperature}
-                    horizontal={renderHorizontally}
                   />
                 </BarStack>
               </g>
@@ -102,14 +100,14 @@ export default function Example({ height }: Props) {
               <>
                 <LineSeries
                   dataKey="San Francisco"
-                  data={data}
+                  data={renderBarStack ? dataSmall : data}
                   xAccessor={renderHorizontally ? getSfTemperature : getDate}
                   yAccessor={renderHorizontally ? getDate : getSfTemperature}
                   horizontal={!renderHorizontally}
                 />
                 <LineSeries
                   dataKey="Austin"
-                  data={data}
+                  data={renderBarStack ? dataSmall : data}
                   xAccessor={renderHorizontally ? getAustinTemperature : getDate}
                   yAccessor={renderHorizontally ? getDate : getAustinTemperature}
                   horizontal={!renderHorizontally}

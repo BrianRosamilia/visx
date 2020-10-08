@@ -1,34 +1,48 @@
 import React, { useContext, useRef, useMemo, useEffect } from 'react';
-import { AxisScale } from '@visx/axis';
 import BaseBarStack from '@visx/shape/lib/shapes/BarStack';
-import { BarStack as BaseBarStackType } from '@visx/shape/lib/types';
+import BaseBarStackHorizontal from '@visx/shape/lib/shapes/BarStackHorizontal';
+import {
+  BarStack as BaseBarStackType,
+  BaseBarStackProps,
+  PositionScale,
+} from '@visx/shape/lib/types';
 import { ScaleInput } from '@visx/scale';
 import { extent } from 'd3-array';
-import BarSeries, { BarSeriesProps } from './BarSeries';
+import { BarSeriesProps } from './BarSeries';
 import DataContext from '../../context/DataContext';
 import { DataContextType, DataRegistryEntry } from '../../types';
 
-const STACK_ACCESSOR = <XScale extends AxisScale, YScale extends AxisScale>(
+const STACK_ACCESSOR = <XScale extends PositionScale, YScale extends PositionScale>(
   d: Pick<CombinedData<XScale, YScale>, 'stack'>,
 ) => d.stack;
 
-type CombinedData<XScale extends AxisScale, YScale extends AxisScale> = {
+type CombinedData<XScale extends PositionScale, YScale extends PositionScale> = {
   [dataKey: string]: ScaleInput<XScale> | ScaleInput<YScale>;
 } & { stack: ScaleInput<XScale> | ScaleInput<YScale>; positiveSum: number; negativeSum: number };
 
-export type BarStackProps = {
+export type BarStackProps<
+  XScale extends PositionScale,
+  YScale extends PositionScale,
+  Datum extends object
+> = {
+  /** Whether to render the Stack horizontally instead of vertically. */
   horizontal?: boolean;
-  children: typeof BarSeries;
-} & Omit<React.SVGProps<SVGRectElement>, 'x' | 'y' | 'width' | 'height' | 'ref'>;
+  /** `BarSeries` elements */
+  children: JSX.Element | JSX.Element[];
+} & Omit<React.SVGProps<SVGRectElement>, 'x' | 'y' | 'width' | 'height' | 'ref'> &
+  Pick<BaseBarStackProps<Datum, string, XScale, YScale>, 'order' | 'offset'>;
 
-function isChildWIthProps<P extends object>(child: React.ReactNode): child is React.FC<P> {
+function isChildWithProps<P extends object>(
+  child: React.ReactNode,
+): child is React.ComponentType<P> {
   return !!child && typeof child === 'object' && 'props' in child && child.props != null;
 }
 
-function BarStack<XScale extends AxisScale, YScale extends AxisScale, Datum extends object>({
-  children,
-  horizontal,
-}: BarStackProps) {
+function BarStack<
+  XScale extends PositionScale,
+  YScale extends PositionScale,
+  Datum extends object
+>({ children, horizontal }: BarStackProps<XScale, YScale, Datum>) {
   const { xScale, yScale, colorScale, dataRegistry, registerData, unregisterData } = useContext(
     DataContext,
   ) as DataContextType<XScale, YScale, Datum>;
@@ -36,7 +50,7 @@ function BarStack<XScale extends AxisScale, YScale extends AxisScale, Datum exte
   const barSeriesChildren = useMemo(
     () =>
       React.Children.toArray(children).filter(child =>
-        isChildWIthProps<BarSeriesProps<XScale, YScale, Datum>>(child),
+        isChildWithProps<BarSeriesProps<XScale, YScale, Datum>>(child),
       ),
     [children],
   ) as React.ReactElement<BarSeriesProps<XScale, YScale, Datum>>[];
@@ -48,7 +62,7 @@ function BarStack<XScale extends AxisScale, YScale extends AxisScale, Datum exte
   );
 
   // use a ref to the stacks for mouse/touch events
-  const stacks = useRef<BaseBarStackType<Datum, string>[] | null>(null);
+  const stacks = useRef<BaseBarStackType<CombinedData<XScale, YScale>, string>[] | null>(null);
 
   // group all child data by stack value, this format is needed by BaseBarStack
   const combinedData: CombinedData<XScale, YScale>[] = useMemo(() => {
@@ -131,36 +145,37 @@ function BarStack<XScale extends AxisScale, YScale extends AxisScale, Datum exte
     return null;
   }
 
-  const hasSomeNegativeValues = comprehensiveDomain.some(num => num < 0);
+  const hasSomeNegativeValues =
+    comprehensiveDomain.length > 0 && comprehensiveDomain.some(num => num < 0);
 
-  return (
-    // @TODO types
-    <BaseBarStack<Datum, string, XScale, YScale>
-      data={combinedData}
-      keys={dataKeys}
-      x={STACK_ACCESSOR}
-      xScale={xScale}
-      yScale={yScale}
-      color={colorScale}
-      offset={hasSomeNegativeValues ? 'diverging' : undefined}
-      // @TODO support all BarStack props
-    >
-      {barStacks => {
-        // use this reference to find nearest mouse values
-        stacks.current = barStacks;
-        return barStacks.map((barStack, stackIndex) => (
-          <React.Fragment key={stackIndex}>
-            {barStack.bars.map(({ bar, index, key, color, ...rest }) => (
-              <rect
-                key={`${stackIndex}-${key}-${index}`}
-                {...rest}
-                fill={color}
-                stroke="transparent"
-              />
-            ))}
-          </React.Fragment>
-        ));
-      }}
+  const stackProps = {
+    data: combinedData,
+    keys: dataKeys,
+    xScale,
+    yScale,
+    color: colorScale,
+    offset: hasSomeNegativeValues ? 'diverging' : undefined,
+  } as const;
+
+  const renderStacks = (barStacks: BaseBarStackType<CombinedData<XScale, YScale>, string>[]) => {
+    // use this reference to find nearest mouse values
+    stacks.current = barStacks;
+    return barStacks.map((barStack, stackIndex) => (
+      <React.Fragment key={stackIndex}>
+        {barStack.bars.map(({ bar, index, key, color, ...rest }) => (
+          <rect key={`${stackIndex}-${key}-${index}`} {...rest} fill={color} stroke="transparent" />
+        ))}
+      </React.Fragment>
+    ));
+  };
+
+  return horizontal ? (
+    <BaseBarStackHorizontal {...stackProps} y={STACK_ACCESSOR}>
+      {renderStacks}
+    </BaseBarStackHorizontal>
+  ) : (
+    <BaseBarStack {...stackProps} x={STACK_ACCESSOR}>
+      {renderStacks}
     </BaseBarStack>
   );
 }
