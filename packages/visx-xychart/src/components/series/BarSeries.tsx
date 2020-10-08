@@ -11,7 +11,7 @@ import findNearestDatumY from '../../utils/findNearestDatumY';
 import useEventEmitter, { HandlerParams } from '../../hooks/useEventEmitter';
 import TooltipContext from '../../context/TooltipContext';
 
-type BarSeriesProps<
+export type BarSeriesProps<
   XScale extends AxisScale,
   YScale extends AxisScale,
   Datum extends object
