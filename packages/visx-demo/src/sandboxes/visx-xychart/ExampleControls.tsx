@@ -8,6 +8,7 @@ type ProvidedProps = {
   animationTrajectory: AnimationTrajectory;
   renderHorizontally: boolean;
   renderBarSeries: boolean;
+  renderBarStack: boolean;
   renderLineSeries: boolean;
   sharedTooltip: boolean;
   showGridColumns: boolean;
@@ -29,7 +30,7 @@ type ControlsProps = {
 export default function ExampleControls({ children }: ControlsProps) {
   const [theme, setTheme] = useState<XYChartTheme>(darkTheme);
   const [animationTrajectory, setAnimationTrajectory] = useState<AnimationTrajectory>('center');
-  const [gridProps, setGridProps] = useState<[boolean, boolean]>([true, true]);
+  const [gridProps, setGridProps] = useState<[boolean, boolean]>([false, false]);
   const [showGridRows, showGridColumns] = gridProps;
   const [xAxisOrientation, setXAxisOrientation] = useState<'top' | 'bottom'>('bottom');
   const [yAxisOrientation, setYAxisOrientation] = useState<'left' | 'right'>('right');
@@ -40,14 +41,15 @@ export default function ExampleControls({ children }: ControlsProps) {
   const [snapTooltipToDatumX, setSnapTooltipToDatumX] = useState(true);
   const [snapTooltipToDatumY, setSnapTooltipToDatumY] = useState(true);
   const [sharedTooltip, setSharedTooltip] = useState(true);
-  const [renderBarSeries, setRenderBarSeries] = useState(true);
+  const [renderBarOrBarStack, setRenderBarOrBarStack] = useState<'bar' | 'barstack'>('barstack');
   const [renderLineSeries, setRenderLineSeries] = useState(true);
 
   return (
     <>
       {children({
         animationTrajectory,
-        renderBarSeries,
+        renderBarSeries: renderBarOrBarStack === 'bar',
+        renderBarStack: renderBarOrBarStack === 'barstack',
         renderHorizontally,
         renderLineSeries,
         sharedTooltip,
@@ -293,11 +295,19 @@ export default function ExampleControls({ children }: ControlsProps) {
           </label>
           <label>
             <input
-              type="checkbox"
-              onChange={() => setRenderBarSeries(!renderBarSeries)}
-              checked={renderBarSeries}
+              type="radio"
+              onChange={() => setRenderBarOrBarStack('bar')}
+              checked={renderBarOrBarStack === 'bar'}
             />{' '}
             bar
+          </label>
+          <label>
+            <input
+              type="radio"
+              onChange={() => setRenderBarOrBarStack('barstack')}
+              checked={renderBarOrBarStack === 'barstack'}
+            />{' '}
+            bar stack
           </label>
         </div>
       </div>

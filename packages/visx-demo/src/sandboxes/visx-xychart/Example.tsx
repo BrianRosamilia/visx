@@ -5,6 +5,7 @@ import {
   AnimatedGrid,
   DataProvider,
   BarSeries,
+  BarStack,
   LineSeries,
   Tooltip,
   XYChart,
@@ -20,10 +21,11 @@ type Props = {
 const xScaleConfig = { type: 'band', paddingInner: 0.3 } as const;
 const yScaleConfig = { type: 'linear' } as const;
 const numTicks = 4;
-const data = cityTemperature.slice(150, 225);
+const data = cityTemperature.slice(200, 275);
 const getDate = (d: CityTemperature) => d.date;
 const getSfTemperature = (d: CityTemperature) => Number(d['San Francisco']);
 const getNyTemperature = (d: CityTemperature) => Number(d['New York']);
+const getAustinTemperature = (d: CityTemperature) => Number(d.Austin);
 
 export default function Example({ height }: Props) {
   return (
@@ -31,6 +33,7 @@ export default function Example({ height }: Props) {
       {({
         animationTrajectory,
         renderBarSeries,
+        renderBarStack,
         renderHorizontally,
         renderLineSeries,
         sharedTooltip,
@@ -68,14 +71,50 @@ export default function Example({ height }: Props) {
                 horizontal={renderHorizontally}
               />
             )}
+            {renderBarStack && (
+              <g fillOpacity={renderLineSeries ? 0.5 : 1}>
+                <BarStack>
+                  <BarSeries
+                    dataKey="New York"
+                    data={data}
+                    xAccessor={renderHorizontally ? getNyTemperature : getDate}
+                    yAccessor={renderHorizontally ? getDate : getNyTemperature}
+                    horizontal={renderHorizontally}
+                  />
+                  <BarSeries
+                    dataKey="San Francisco"
+                    data={data}
+                    xAccessor={renderHorizontally ? getSfTemperature : getDate}
+                    yAccessor={renderHorizontally ? getDate : getSfTemperature}
+                    horizontal={renderHorizontally}
+                  />
+                  <BarSeries
+                    dataKey="Austin"
+                    data={data}
+                    xAccessor={renderHorizontally ? getAustinTemperature : getDate}
+                    yAccessor={renderHorizontally ? getDate : getAustinTemperature}
+                    horizontal={renderHorizontally}
+                  />
+                </BarStack>
+              </g>
+            )}
             {renderLineSeries && (
-              <LineSeries
-                dataKey="San Francisco"
-                data={data}
-                xAccessor={renderHorizontally ? getSfTemperature : getDate}
-                yAccessor={renderHorizontally ? getDate : getSfTemperature}
-                horizontal={!renderHorizontally}
-              />
+              <>
+                <LineSeries
+                  dataKey="San Francisco"
+                  data={data}
+                  xAccessor={renderHorizontally ? getSfTemperature : getDate}
+                  yAccessor={renderHorizontally ? getDate : getSfTemperature}
+                  horizontal={!renderHorizontally}
+                />
+                <LineSeries
+                  dataKey="Austin"
+                  data={data}
+                  xAccessor={renderHorizontally ? getAustinTemperature : getDate}
+                  yAccessor={renderHorizontally ? getDate : getAustinTemperature}
+                  horizontal={!renderHorizontally}
+                />
+              </>
             )}
             <AnimatedAxis
               key={`time-axis-${animationTrajectory}-${renderHorizontally}`}
