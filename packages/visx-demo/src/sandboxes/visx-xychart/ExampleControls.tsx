@@ -1,11 +1,44 @@
 /* eslint-disable jsx-a11y/label-has-associated-control */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { lightTheme, darkTheme, XYChartTheme } from '@visx/xychart';
 import { AnimationTrajectory } from '@visx/react-spring/lib/types';
+import cityTemperature, { CityTemperature } from '@visx/mock-data/lib/mocks/cityTemperature';
 import customTheme from './customTheme';
 
+const dateScaleConfig = { type: 'band', paddingInner: 0.3 } as const;
+const temperatureScaleConfig = { type: 'linear' } as const;
+const numTicks = 4;
+const data = cityTemperature.slice(200, 275);
+const dataSmall = data.slice(25);
+const getDate = (d: CityTemperature) => d.date;
+const getSfTemperature = (d: CityTemperature) => Number(d['San Francisco']);
+const getNegativeSFTemperature = (d: CityTemperature) => -getSfTemperature(d);
+const getNyTemperature = (d: CityTemperature) => Number(d['New York']);
+const getAustinTemperature = (d: CityTemperature) => Number(d.Austin);
+
+type Accessor = (d: CityTemperature) => number | string;
+
+interface Accessors {
+  'San Francisco': Accessor;
+  'New York': Accessor;
+  Austin: Accessor;
+}
+
+type SimpleScaleConfig = { type: 'band' | 'linear'; paddingInner?: number };
+
 type ProvidedProps = {
+  accessors: {
+    x: Accessors;
+    y: Accessors;
+    date: Accessor;
+  };
+  config: {
+    x: SimpleScaleConfig;
+    y: SimpleScaleConfig;
+  };
   animationTrajectory: AnimationTrajectory;
+  data: CityTemperature[];
+  numTicks: number;
   renderHorizontally: boolean;
   renderBarSeries: boolean;
   renderBarStack: boolean;
@@ -43,11 +76,49 @@ export default function ExampleControls({ children }: ControlsProps) {
   const [sharedTooltip, setSharedTooltip] = useState(true);
   const [renderBarOrBarStack, setRenderBarOrBarStack] = useState<'bar' | 'barstack'>('barstack');
   const [renderLineSeries, setRenderLineSeries] = useState(true);
+  const [negativeValues, setNegativeValues] = useState(false);
+
+  const accessors = useMemo(
+    () => ({
+      x: {
+        'San Francisco': renderHorizontally
+          ? negativeValues
+            ? getNegativeSFTemperature
+            : getSfTemperature
+          : getDate,
+        'New York': renderHorizontally ? getNyTemperature : getDate,
+        Austin: renderHorizontally ? getAustinTemperature : getDate,
+      },
+      y: {
+        'San Francisco': renderHorizontally
+          ? getDate
+          : negativeValues
+          ? getNegativeSFTemperature
+          : getSfTemperature,
+        'New York': renderHorizontally ? getDate : getNyTemperature,
+        Austin: renderHorizontally ? getDate : getAustinTemperature,
+      },
+      date: getDate,
+    }),
+    [renderHorizontally, negativeValues],
+  );
+
+  const config = useMemo(
+    () => ({
+      x: renderHorizontally ? temperatureScaleConfig : dateScaleConfig,
+      y: renderHorizontally ? dateScaleConfig : temperatureScaleConfig,
+    }),
+    [renderHorizontally],
+  );
 
   return (
     <>
       {children({
+        accessors,
         animationTrajectory,
+        config,
+        data: renderBarOrBarStack === 'bar' ? data : dataSmall,
+        numTicks,
         renderBarSeries: renderBarOrBarStack === 'bar',
         renderBarStack: renderBarOrBarStack === 'barstack',
         renderHorizontally,
@@ -308,6 +379,18 @@ export default function ExampleControls({ children }: ControlsProps) {
               checked={renderBarOrBarStack === 'barstack'}
             />{' '}
             bar stack
+          </label>
+        </div>
+        {/** data */}
+        <div>
+          <strong>data</strong>
+          <label>
+            <input
+              type="checkbox"
+              onChange={() => setNegativeValues(!negativeValues)}
+              checked={negativeValues}
+            />{' '}
+            negative values (SF)
           </label>
         </div>
       </div>

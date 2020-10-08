@@ -1,5 +1,5 @@
 import React from 'react';
-import cityTemperature, { CityTemperature } from '@visx/mock-data/lib/mocks/cityTemperature';
+import { CityTemperature } from '@visx/mock-data/lib/mocks/cityTemperature';
 import {
   AnimatedAxis,
   AnimatedGrid,
@@ -18,21 +18,17 @@ type Props = {
   height: number;
 };
 
-const xScaleConfig = { type: 'band', paddingInner: 0.3 } as const;
-const yScaleConfig = { type: 'linear' } as const;
-const numTicks = 4;
-const data = cityTemperature.slice(200, 275);
-const dataSmall = data.slice(25);
-const getDate = (d: CityTemperature) => d.date;
-const getSfTemperature = (d: CityTemperature) => Number(d['San Francisco']);
-const getNyTemperature = (d: CityTemperature) => Number(d['New York']);
-const getAustinTemperature = (d: CityTemperature) => Number(d.Austin);
+type City = 'San Francisco' | 'New York' | 'Austin';
 
 export default function Example({ height }: Props) {
   return (
     <ExampleControls>
       {({
+        accessors,
         animationTrajectory,
+        config,
+        data,
+        numTicks,
         renderBarSeries,
         renderBarStack,
         renderHorizontally,
@@ -49,11 +45,7 @@ export default function Example({ height }: Props) {
         xAxisOrientation,
         yAxisOrientation,
       }) => (
-        <DataProvider
-          theme={theme}
-          xScale={renderHorizontally ? yScaleConfig : xScaleConfig}
-          yScale={renderHorizontally ? xScaleConfig : yScaleConfig}
-        >
+        <DataProvider theme={theme} xScale={config.x} yScale={config.y}>
           <XYChart height={Math.min(400, height)}>
             <CustomChartBackground />
             <AnimatedGrid
@@ -67,8 +59,8 @@ export default function Example({ height }: Props) {
               <BarSeries
                 dataKey="New York"
                 data={data}
-                xAccessor={renderHorizontally ? getNyTemperature : getDate}
-                yAccessor={renderHorizontally ? getDate : getNyTemperature}
+                xAccessor={accessors.x['New York']}
+                yAccessor={accessors.y['New York']}
                 horizontal={renderHorizontally}
               />
             )}
@@ -77,21 +69,21 @@ export default function Example({ height }: Props) {
                 <BarStack horizontal={renderHorizontally}>
                   <BarSeries
                     dataKey="New York"
-                    data={dataSmall}
-                    xAccessor={renderHorizontally ? getNyTemperature : getDate}
-                    yAccessor={renderHorizontally ? getDate : getNyTemperature}
+                    data={data}
+                    xAccessor={accessors.x['New York']}
+                    yAccessor={accessors.y['New York']}
                   />
                   <BarSeries
                     dataKey="San Francisco"
-                    data={dataSmall}
-                    xAccessor={renderHorizontally ? getSfTemperature : getDate}
-                    yAccessor={renderHorizontally ? getDate : getSfTemperature}
+                    data={data}
+                    xAccessor={accessors.x['San Francisco']}
+                    yAccessor={accessors.y['San Francisco']}
                   />
                   <BarSeries
                     dataKey="Austin"
-                    data={dataSmall}
-                    xAccessor={renderHorizontally ? getAustinTemperature : getDate}
-                    yAccessor={renderHorizontally ? getDate : getAustinTemperature}
+                    data={data}
+                    xAccessor={accessors.x.Austin}
+                    yAccessor={accessors.y.Austin}
                   />
                 </BarStack>
               </g>
@@ -100,16 +92,16 @@ export default function Example({ height }: Props) {
               <>
                 <LineSeries
                   dataKey="San Francisco"
-                  data={renderBarStack ? dataSmall : data}
-                  xAccessor={renderHorizontally ? getSfTemperature : getDate}
-                  yAccessor={renderHorizontally ? getDate : getSfTemperature}
+                  data={renderBarStack ? data : data}
+                  xAccessor={accessors.x['San Francisco']}
+                  yAccessor={accessors.y['San Francisco']}
                   horizontal={!renderHorizontally}
                 />
                 <LineSeries
                   dataKey="Austin"
-                  data={renderBarStack ? dataSmall : data}
-                  xAccessor={renderHorizontally ? getAustinTemperature : getDate}
-                  yAccessor={renderHorizontally ? getDate : getAustinTemperature}
+                  data={renderBarStack ? data : data}
+                  xAccessor={accessors.x.Austin}
+                  yAccessor={accessors.y.Austin}
                   horizontal={!renderHorizontally}
                 />
               </>
@@ -139,7 +131,7 @@ export default function Example({ height }: Props) {
                   <>
                     {/** date */}
                     {tooltipData?.nearestDatum?.datum
-                      ? getDate(tooltipData?.nearestDatum?.datum)
+                      ? accessors.date(tooltipData?.nearestDatum?.datum)
                       : 'No date'}
                     <br />
                     <br />
@@ -147,18 +139,23 @@ export default function Example({ height }: Props) {
                     {((sharedTooltip
                       ? Object.keys(tooltipData?.datumByKey ?? {})
                       : [tooltipData?.nearestDatum?.key]
-                    ).filter(key => key) as string[]).map(key => (
-                      <div key={key}>
+                    ).filter(city => city) as City[]).map(city => (
+                      <div key={city}>
                         <em
                           style={{
-                            color: colorScale?.(key),
+                            color: colorScale?.(city),
                             textDecoration:
-                              tooltipData?.nearestDatum?.key === key ? 'underline' : undefined,
+                              tooltipData?.nearestDatum?.key === city ? 'underline' : undefined,
                           }}
                         >
-                          {key}
+                          {city}
                         </em>{' '}
-                        {tooltipData?.datumByKey[key].datum[key as keyof CityTemperature]}° F
+                        {tooltipData?.nearestDatum?.datum
+                          ? accessors[renderHorizontally ? 'x' : 'y'][city](
+                              tooltipData?.nearestDatum?.datum,
+                            )
+                          : '–'}
+                        ° F
                       </div>
                     ))}
                   </>
