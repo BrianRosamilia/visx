@@ -75,7 +75,7 @@ export default function ExampleControls({ children }: ControlsProps) {
   const [snapTooltipToDatumY, setSnapTooltipToDatumY] = useState(true);
   const [sharedTooltip, setSharedTooltip] = useState(true);
   const [renderBarOrBarStack, setRenderBarOrBarStack] = useState<'bar' | 'barstack'>('barstack');
-  const [renderLineSeries, setRenderLineSeries] = useState(true);
+  const [renderLineSeries, setRenderLineSeries] = useState(false);
   const [negativeValues, setNegativeValues] = useState(false);
 
   const accessors = useMemo(
@@ -122,7 +122,7 @@ export default function ExampleControls({ children }: ControlsProps) {
         renderBarSeries: renderBarOrBarStack === 'bar',
         renderBarStack: renderBarOrBarStack === 'barstack',
         renderHorizontally,
-        renderLineSeries,
+        renderLineSeries: renderBarOrBarStack === 'bar' && renderLineSeries,
         sharedTooltip,
         showGridColumns,
         showGridRows,

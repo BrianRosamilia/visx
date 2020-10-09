@@ -55,15 +55,6 @@ export default function Example({ height }: Props) {
               animationTrajectory={animationTrajectory}
               numTicks={numTicks}
             />
-            {renderBarSeries && (
-              <BarSeries
-                dataKey="New York"
-                data={data}
-                xAccessor={accessors.x['New York']}
-                yAccessor={accessors.y['New York']}
-                horizontal={renderHorizontally}
-              />
-            )}
             {renderBarStack && (
               <g fillOpacity={renderLineSeries ? 0.5 : 1}>
                 <BarStack horizontal={renderHorizontally}>
@@ -87,6 +78,15 @@ export default function Example({ height }: Props) {
                   />
                 </BarStack>
               </g>
+            )}
+            {renderBarSeries && (
+              <BarSeries
+                dataKey="New York"
+                data={data}
+                xAccessor={accessors.x['New York']}
+                yAccessor={accessors.y['New York']}
+                horizontal={renderHorizontally}
+              />
             )}
             {renderLineSeries && (
               <>

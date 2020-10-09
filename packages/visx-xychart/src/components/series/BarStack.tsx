@@ -1,24 +1,28 @@
-import React, { useContext, useRef, useMemo, useEffect } from 'react';
-import BaseBarStack from '@visx/shape/lib/shapes/BarStack';
-import BaseBarStackHorizontal from '@visx/shape/lib/shapes/BarStackHorizontal';
-import {
-  BarStack as BaseBarStackType,
-  BaseBarStackProps,
-  PositionScale,
-} from '@visx/shape/lib/types';
+import React, { useContext, useCallback, useRef, useMemo, useEffect } from 'react';
+import { stack as d3stack } from 'd3-shape';
+import { BaseBarStackProps, PositionScale, SeriesPoint } from '@visx/shape/lib/types';
+import stackOffset from '@visx/shape/lib/util/stackOffset';
+import stackOrder from '@visx/shape/lib/util/stackOrder';
+
 import { ScaleInput } from '@visx/scale';
 import { extent } from 'd3-array';
+import getBandwidth from '@visx/shape/lib/util/getBandwidth';
 import { BarSeriesProps } from './BarSeries';
 import DataContext from '../../context/DataContext';
 import { DataContextType, DataRegistryEntry } from '../../types';
-
-const STACK_ACCESSOR = <XScale extends PositionScale, YScale extends PositionScale>(
-  d: Pick<CombinedData<XScale, YScale>, 'stack'>,
-) => d.stack;
+import TooltipContext from '../../context/TooltipContext';
+import useEventEmitter, { HandlerParams } from '../../hooks/useEventEmitter';
+import findNearestDatumY from '../../utils/findNearestDatumY';
+import findNearestDatumX from '../../utils/findNearestDatumX';
+import isValidNumber from '../../typeguards/isValidNumber';
 
 type CombinedData<XScale extends PositionScale, YScale extends PositionScale> = {
   [dataKey: string]: ScaleInput<XScale> | ScaleInput<YScale>;
 } & { stack: ScaleInput<XScale> | ScaleInput<YScale>; positiveSum: number; negativeSum: number };
+
+const STACK_ACCESSOR = <XScale extends PositionScale, YScale extends PositionScale>(
+  d: Pick<CombinedData<XScale, YScale>, 'stack'>,
+) => d.stack;
 
 export type BarStackProps<
   XScale extends PositionScale,
@@ -42,10 +46,10 @@ function BarStack<
   XScale extends PositionScale,
   YScale extends PositionScale,
   Datum extends object
->({ children, horizontal }: BarStackProps<XScale, YScale, Datum>) {
+>({ children, horizontal, order, offset }: BarStackProps<XScale, YScale, Datum>) {
   const { xScale, yScale, colorScale, dataRegistry, registerData, unregisterData } = useContext(
     DataContext,
-  ) as DataContextType<XScale, YScale, Datum>;
+  ) as DataContextType<XScale, YScale, SeriesPoint<CombinedData<XScale, YScale>>>;
 
   const barSeriesChildren = useMemo(
     () =>
@@ -61,10 +65,7 @@ function BarStack<
     [barSeriesChildren],
   );
 
-  // use a ref to the stacks for mouse/touch events
-  const stacks = useRef<BaseBarStackType<CombinedData<XScale, YScale>, string>[] | null>(null);
-
-  // group all child data by stack value, this format is needed by BaseBarStack
+  // group all child data by stack value, this format is needed by d3Stack
   const combinedData: CombinedData<XScale, YScale>[] = useMemo(() => {
     const dataByStackValue: {
       [stackValue: string]: CombinedData<XScale, YScale>;
@@ -103,80 +104,127 @@ function BarStack<
     [combinedData],
   );
 
-  // register all child data
+  const stackedData = useMemo(() => {
+    const hasSomeNegativeValues =
+      comprehensiveDomain.length > 0 && comprehensiveDomain.some(num => num < 0);
+
+    const stack = d3stack<CombinedData<XScale, YScale>, string>();
+    stack.keys(dataKeys);
+    if (order) stack.order(stackOrder(order));
+    if (offset || hasSomeNegativeValues) stack.offset(stackOffset(offset || 'diverging'));
+
+    return stack(combinedData);
+  }, [combinedData, dataKeys, comprehensiveDomain, order, offset]);
+
+  // register all child data using the stack-transformed values
   useEffect(() => {
-    const dataToRegister: DataRegistryEntry<XScale, YScale, Datum>[] = barSeriesChildren.map(
-      (child, index) => {
-        const { dataKey: key, data, xAccessor, yAccessor } = child.props;
-        const entry: DataRegistryEntry<XScale, YScale, Datum> = { key, data, xAccessor, yAccessor };
+    const dataToRegister = barSeriesChildren
+      .map((child, childIndex) => {
+        const { dataKey: key } = child.props;
+        const stackedDataForKey = stackedData.find(d => d.key === key);
 
-        if (comprehensiveDomain.length > 0 && index === 0) {
-          if (horizontal) {
-            entry.xScale = (scale: XScale) =>
-              scale.domain(
-                extent<number | ScaleInput<XScale>, number | ScaleInput<XScale>>(
-                  [...scale.domain(), ...comprehensiveDomain],
-                  d => d,
-                ),
-              );
-          } else {
-            entry.yScale = (scale: YScale) =>
-              scale.domain(
-                extent<number | ScaleInput<YScale>, number | ScaleInput<YScale>>(
-                  [...scale.domain(), ...comprehensiveDomain],
-                  d => d,
-                ),
-              );
+        if (stackedDataForKey) {
+          const getStack = (bar: SeriesPoint<CombinedData<XScale, YScale>>) => bar.data.stack;
+          const getNumericValue = ([, barTop]: SeriesPoint<CombinedData<XScale, YScale>>) => barTop;
+          const entry: DataRegistryEntry<
+            XScale,
+            YScale,
+            SeriesPoint<CombinedData<XScale, YScale>>
+          > = {
+            key,
+            data: stackedDataForKey,
+            xAccessor: horizontal ? getNumericValue : getStack,
+            yAccessor: horizontal ? getStack : getNumericValue,
+          };
+
+          if (comprehensiveDomain.length > 0 && childIndex === 0) {
+            if (horizontal) {
+              entry.xScale = (scale: XScale) =>
+                scale.domain(
+                  extent<number | ScaleInput<XScale>, number | ScaleInput<XScale>>(
+                    [...scale.domain(), ...comprehensiveDomain],
+                    d => d,
+                  ),
+                );
+            } else {
+              entry.yScale = (scale: YScale) =>
+                scale.domain(
+                  extent<number | ScaleInput<YScale>, number | ScaleInput<YScale>>(
+                    [...scale.domain(), ...comprehensiveDomain],
+                    d => d,
+                  ),
+                );
+            }
           }
-        }
 
-        return entry;
-      },
-    );
+          return entry;
+        }
+        return null;
+      })
+      .filter(entry => entry) as DataRegistryEntry<
+      XScale,
+      YScale,
+      SeriesPoint<CombinedData<XScale, YScale>>
+    >[];
 
     registerData(dataToRegister);
 
     // unregister data on unmount
     return () => unregisterData(Object.keys(dataToRegister));
-  }, [horizontal, comprehensiveDomain, registerData, unregisterData, barSeriesChildren]);
+  }, [
+    comprehensiveDomain,
+    horizontal,
+    stackedData,
+    registerData,
+    unregisterData,
+    barSeriesChildren,
+  ]);
 
   // if scales and data are not available in the registry, bail
   if (dataKeys.some(key => dataRegistry.get(key) == null) || !xScale || !yScale || !colorScale) {
     return null;
   }
 
-  const hasSomeNegativeValues =
-    comprehensiveDomain.length > 0 && comprehensiveDomain.some(num => num < 0);
+  const barThickness = getBandwidth(horizontal ? yScale : xScale);
 
-  const stackProps = {
-    data: combinedData,
-    keys: dataKeys,
-    xScale,
-    yScale,
-    color: colorScale,
-    offset: hasSomeNegativeValues ? 'diverging' : undefined,
-  } as const;
+  return (
+    <g className="visx-bar-stack">
+      {stackedData.map((barStack, stackIndex) => {
+        const entry = dataRegistry.get(barStack.key);
 
-  const renderStacks = (barStacks: BaseBarStackType<CombinedData<XScale, YScale>, string>[]) => {
-    // use this reference to find nearest mouse values
-    stacks.current = barStacks;
-    return barStacks.map((barStack, stackIndex) => (
-      <React.Fragment key={stackIndex}>
-        {barStack.bars.map(({ bar, index, key, color, ...rest }) => (
-          <rect key={`${stackIndex}-${key}-${index}`} {...rest} fill={color} stroke="transparent" />
-        ))}
-      </React.Fragment>
-    ));
-  };
+        return entry
+          ? barStack.map((bar, index) => {
+              const barLength = horizontal
+                ? (xScale(bar[1]) || 0) - (xScale(bar[0]) || 0)
+                : (yScale(bar[0]) || 0) - (yScale(bar[1]) || 0);
 
-  return horizontal ? (
-    <BaseBarStackHorizontal {...stackProps} y={STACK_ACCESSOR}>
-      {renderStacks}
-    </BaseBarStackHorizontal>
-  ) : (
-    <BaseBarStack {...stackProps} x={STACK_ACCESSOR}>
-      {renderStacks}
-    </BaseBarStack>
+              const barY = horizontal
+                ? 'bandwidth' in yScale
+                  ? yScale(STACK_ACCESSOR(bar.data))
+                  : Math.max((yScale(STACK_ACCESSOR(bar.data)) || 0) - barThickness / 2)
+                : yScale(entry.yAccessor(bar));
+
+              const barX: number | undefined = horizontal
+                ? xScale(bar[0])
+                : 'bandwidth' in xScale
+                ? xScale(STACK_ACCESSOR(bar.data))
+                : Math.max((xScale(STACK_ACCESSOR(bar.data)) || 0) - barThickness / 2);
+
+              return isValidNumber(barX) && isValidNumber(barY) ? (
+                <rect
+                  key={`${stackIndex}-${barStack.key}-${index}`}
+                  x={barX ?? 0}
+                  y={barY ?? 0}
+                  width={horizontal ? barLength : barThickness}
+                  height={horizontal ? barThickness : barLength}
+                  fill={colorScale(barStack.key)}
+                  stroke="transparent"
+                />
+              ) : null;
+            })
+          : null;
+      })}
+    </g>
   );
 }
 
