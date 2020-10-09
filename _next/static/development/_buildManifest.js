@@ -1,0 +1,1 @@
+self.__BUILD_MANIFEST = {__rewrites:[],"/_error":["static\u002Fchunks\u002Fpages\u002F_error.js"],"/gallery":["static\u002Fchunks\u002Fpages\u002Fgallery.js"],"/streamgraph":["static\u002Fchunks\u002Fpages\u002Fstreamgraph.js"],sortedPages:["\u002F_app","\u002F_error","\u002Fgallery","\u002Fstreamgraph"]};self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()
